@@ -19,7 +19,7 @@ cur = conn.cursor()
 def get_vacancies_from_hh(city, vacancy):
     # Параметры для поиска
     headers = {'Authorization': 'Bearer APPLJUL05UFUADFTH956A0VCG16QATBP64CKMB75O5OIH4MEN19SKP15JT3U6N91'}
-    params = {'text': vacancy, 'area': get_area_id(city), 'per_page': '20'}
+    params = {'text': vacancy, 'area': get_area_id(city), 'per_page': '100'}
     cur.execute("""
         CREATE TABLE IF NOT EXISTS Vacancies (
             id SERIAL PRIMARY KEY,
@@ -79,15 +79,13 @@ def start_message(message):
 def city_selected(message):
     global selected_city
     selected_city = message.text  # Запомни выбранный город
-    bot.send_message(message.chat.id, 'Отлично! Какие вакансии хочешь посмотреть?')
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    item1 = types.KeyboardButton("Веб-дизайнер")
-    item2 = types.KeyboardButton("Разработчик Python")
-    item3 = types.KeyboardButton("СЕО-аналитик")
-    item4 = types.KeyboardButton("Грузчик")
-    item5 = types.KeyboardButton("Кассир")
-    markup.add(item1, item2, item3, item4, item5)
-    bot.send_message(message.chat.id, 'Выберите вакансию:', reply_markup=markup)
+    bot.send_message(message.chat.id, 'Отлично! Введите название вакансии:')
+    bot.register_next_step_handler(message, vacancy_selected)
+
+def vacancy_selected(message):
+    global selected_vacancy
+    selected_vacancy = message.text  # Запомни выбранную вакансию
+    bot.send_message(message.chat.id, f'Вы выбрали город {selected_city} и вакансию {selected_vacancy}.')
 
 
 def save_vacancy_to_db(vacancy):
@@ -132,7 +130,7 @@ def vacancy_selected(message):
     print(selected_vacancy)
     get_vacancies_from_hh(city_selected, selected_vacancy)
     cur.execute(f"SELECT * FROM Vacancies WHERE name = '{selected_vacancy}' AND area_name = '{selected_city}'")
-    print(f"SELECT * FROM Vacancies WHERE name = '{selected_vacancy}' AND area_name = '{selected_city}'")
+    print((f"SELECT * FROM Vacancies WHERE name = '{selected_vacancy}' AND area_name = '{selected_city}'"))
     vacancies = cur.fetchall()
     if vacancies:
         for vacancy in vacancies:
@@ -146,6 +144,15 @@ def vacancy_selected(message):
             employment = vacancy[8]
             experience = vacancy[9]
             schedule = vacancy[10]
+
+            salary_from = salary_from if salary_from else "не указано"
+            salary_to = salary_to if salary_to else "не указано"
+            currency = currency if currency else "не указано"
+            address = address if address else "не указано"
+            employment = employment if employment else "не указано"
+            experience = experience if experience else "не указано"
+            schedule = schedule if schedule else "не указано"
+
             bot.send_message(message.chat.id, f"{name}\nЗарплата: {salary_from} - {salary_to} {currency}\n"
                                               f"Адрес: {address}\nГород: {area}\nЗанятость: {employment}\nОпыт: {experience}\n"
                                               f"График: {schedule}")
