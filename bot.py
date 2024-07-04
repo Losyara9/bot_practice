@@ -24,6 +24,7 @@ def get_vacancies_from_hh(city, vacancy):
     headers = {
         'Authorization': 'Bearer APPLJUL05UFUADFTH956A0VCG16QATBP64CKMB75O5OIH4MEN19SKP15JT3U6N91'}
     params = {'text': vacancy, 'area': get_area_id(city), 'per_page': '100'}
+    print(get_area_id(city))
     cur.execute("""
         CREATE TABLE IF NOT EXISTS Vacancies (
             id SERIAL PRIMARY KEY,
@@ -36,7 +37,8 @@ def get_vacancies_from_hh(city, vacancy):
             street_name VARCHAR(255),
             employment VARCHAR(255),
             experience VARCHAR(255),
-            schedule VARCHAR(255)
+            schedule VARCHAR(255),
+            link VARCHAR(255)
         )
     """)
     conn.commit()
@@ -89,7 +91,6 @@ def start_message(message):
 
 
 # Переменные для фильтров
-selected_city = None
 selected_vacancy = None
 selected_salary_from = None
 selected_salary_to = None
@@ -189,8 +190,8 @@ def employment_selected(message):
         selected_employment = 'Частичная занятость'
     elif message.text == '/project':
         selected_employment = 'Проектная работа'
-    elif message.text == '/remote':
-        selected_employment = 'Удаленная работа'
+    elif message.text == '/internship':
+        selected_employment = 'Стажировка'
     else:
         bot.send_message(
             message.chat.id,
@@ -256,34 +257,25 @@ def save_vacancy_to_db(vacancy):
     experience_name = experience['name']
     schedule = vacancy['schedule']
     schedule_name = schedule['name']
-    # description = vacancy['snippet']
-    # requirement = description['requirement'] if description else None
-    # responsibility = description['responsibility'] if description else None
+    link = vacancy['alternate_url']
 
     # Сохранение данных в базу
     cur.execute("""
-                INSERT INTO Vacancies (name, area_name, salary_from, salary_to, currency, street_name, employer, 
-                employment, experience, schedule)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO Vacancies (name, area_name, salary_from, salary_to, currency, street_name, employer,
+                employment, experience, schedule, link)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (name, area_name, salary_from, salary_to, currency, street_name, employer_name, employment_name,
-                  experience_name, schedule_name))
+                  experience_name, schedule_name, link))
 
     conn.commit()
 
 
-@bot.message_handler(
-    func=lambda message: message.text in [
-        "Веб-дизайнер",
-        "Разработчик Python",
-        "СЕО-аналитик",
-        "Грузчик",
-        "Кассир"])
 def show_vacancies(message):
-    get_vacancies_from_hh(city_selected, selected_vacancy)
+    get_vacancies_from_hh(selected_city, selected_vacancy)
     sql_query = f"SELECT * FROM Vacancies WHERE name = '{selected_vacancy}' AND area_name = '{selected_city}'"
+    print(sql_query)
 
-    # Добавьте условия для фильтрации по зарплате, занятости и графику,
-    # если эти фильтры были выбраны пользователем:
+    # Добавление доп. фильтров которые были указаны пользователем
     if selected_salary_from is not None:
         sql_query += f" AND salary_from >= {selected_salary_from}"
     if selected_salary_to is not None:
@@ -295,7 +287,7 @@ def show_vacancies(message):
 
     cur.execute(sql_query)
     vacancies = cur.fetchall()
-
+    print(vacancies)
     if vacancies:
         for vacancy in vacancies:
             name = vacancy[1]
@@ -308,6 +300,7 @@ def show_vacancies(message):
             employment = vacancy[8]
             experience = vacancy[9]
             schedule = vacancy[10]
+            link = vacancy[11]
 
             salary_from = salary_from if salary_from else "не указано"
             salary_to = salary_to if salary_to else "не указано"
@@ -318,10 +311,9 @@ def show_vacancies(message):
             schedule = schedule if schedule else "не указано"
 
             bot.send_message(
-                message.chat.id,
-                f"{name}\nЗарплата: {salary_from} - {salary_to} {currency}\n"
+                message.chat.id, f"{name}\nЗарплата: {salary_from} - {salary_to} {currency}\n"
                 f"Адрес: {address}\nГород: {area}\nЗанятость: {employment}\nОпыт: {experience}\n"
-                f"График: {schedule}\nРаботодатель: {employer}")
+                f"График: {schedule}\nРаботодатель: {employer}\nСсылка на вакансию: {link}")
 
         # Предложить пользователю вернуться в главное меню
         bot.send_message(
@@ -346,3 +338,4 @@ def start_over(message):
 
 
 bot.infinity_polling()
+
