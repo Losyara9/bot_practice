@@ -7,18 +7,22 @@ token = '7442990666:AAHjb16py4B2rsdi4Rs4fdVGHOCAlT5QLBU'
 
 bot = telebot.TeleBot(token)
 
+# Подключение к базе данных
 conn = psycopg2.connect(
-        dbname="vacancies",
-        user="postgres",
-        password="los",
-        host="localhost",
-        port="5432"
-    )
+    dbname="vacancies",
+    user="postgres",
+    password="los",
+    host="localhost",
+    port="5432"
+)
 cur = conn.cursor()
 
+# Создание таблицы в бд и парсинг вакансий
+
+
 def get_vacancies_from_hh(city, vacancy):
-    # Параметры для поиска
-    headers = {'Authorization': 'Bearer APPLJUL05UFUADFTH956A0VCG16QATBP64CKMB75O5OIH4MEN19SKP15JT3U6N91'}
+    headers = {
+        'Authorization': 'Bearer APPLJUL05UFUADFTH956A0VCG16QATBP64CKMB75O5OIH4MEN19SKP15JT3U6N91'}
     params = {'text': vacancy, 'area': get_area_id(city), 'per_page': '100'}
     cur.execute("""
         CREATE TABLE IF NOT EXISTS Vacancies (
@@ -43,6 +47,9 @@ def get_vacancies_from_hh(city, vacancy):
     for vacancy in data['items']:
         save_vacancy_to_db(vacancy)
 
+# Получение id города для фильтрации
+
+
 def get_area_id(city):
     if city == "Москва":
         return 1
@@ -61,9 +68,14 @@ def get_area_id(city):
     else:
         return None
 
+# Обработка команды start
+
+
 @bot.message_handler(commands=['start'])
 def start_message(message):
-    bot.send_message(message.chat.id, 'Привет! Я помогу найти тебе различные вакансии в нескольких городах:')
+    bot.send_message(
+        message.chat.id,
+        'Привет! Я помогу найти тебе различные вакансии в нескольких городах:')
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     item1 = types.KeyboardButton("Москва")
     item2 = types.KeyboardButton("Санкт-Петербург")
@@ -75,6 +87,8 @@ def start_message(message):
     markup.add(item1, item2, item3, item4, item5, item6, item7)
     bot.send_message(message.chat.id, 'Выберите город:', reply_markup=markup)
 
+
+# Переменные для фильтров
 selected_city = None
 selected_vacancy = None
 selected_salary_from = None
@@ -83,7 +97,15 @@ selected_employment = None
 selected_schedule = None
 
 
-@bot.message_handler(func=lambda message: message.text in ["Москва", "Санкт-Петербург", "Мытищи", "Химки", "Долгопрудный", "Реутов", "Люберцы"])
+@bot.message_handler(
+    func=lambda message: message.text in [
+        "Москва",
+        "Санкт-Петербург",
+        "Мытищи",
+        "Химки",
+        "Долгопрудный",
+        "Реутов",
+        "Люберцы"])
 def city_selected(message):
     global selected_city
     selected_city = message.text  # Запомни выбранный город
@@ -91,58 +113,74 @@ def city_selected(message):
     bot.register_next_step_handler(message, vacancy_selected)
 
 # Обработка выбора вакансии
+
+
 @bot.message_handler(func=lambda message: message.text)
 def vacancy_selected(message):
     global selected_vacancy
     selected_vacancy = message.text
     bot.send_message(message.chat.id, 'Теперь выбери дополнительные фильтры:\n'
-                                     '1. Зарплата\n'
-                                     '2. Тип занятости\n'
-                                     '3. График работы\n'
-                                     '4. Ничего не добавлять')
+                     '1. Зарплата\n'
+                     '2. Тип занятости\n'
+                     '3. График работы\n'
+                     '4. Ничего не добавлять')
     bot.register_next_step_handler(message, filter_selected)
 
 
 # Обработка выбора фильтра
 def filter_selected(message):
     if message.text == '1':
-        bot.send_message(message.chat.id, 'Введите минимальную желаемую зарплату:')
+        bot.send_message(
+            message.chat.id,
+            'Введите минимальную желаемую зарплату:')
         bot.register_next_step_handler(message, salary_from_selected)
     elif message.text == '2':
         bot.send_message(message.chat.id, 'Выберите тип занятости:\n'
-                                         '/fulltime - Полная занятость\n'
-                                         '/parttime - Частичная занятость\n'
-                                         '/project - Проектная работа\n'
-                                         '/remote - Удаленная работа')
+                         '/fulltime - Полная занятость\n'
+                         '/parttime - Частичная занятость\n'
+                         '/project - Проектная работа\n'
+                         '/remote - Удаленная работа')
         bot.register_next_step_handler(message, employment_selected)
     elif message.text == '3':
         bot.send_message(message.chat.id, 'Выберите график работы:\n'
-                                         '/fullday - Полный день\n'
-                                         '/shift - Сменный график\n'
-                                         '/flexible - Гибкий график\n'
-                                         '/remote - Удаленная работа')
+                         '/fullday - Полный день\n'
+                         '/shift - Сменный график\n'
+                         '/flexible - Гибкий график\n'
+                         '/remote - Удаленная работа')
         bot.register_next_step_handler(message, schedule_selected)
     elif message.text == '4':
         show_vacancies(message)
     else:
-        bot.send_message(message.chat.id, 'Некорректный выбор. Попробуйте снова.')
+        bot.send_message(
+            message.chat.id,
+            'Некорректный выбор. Попробуйте снова.')
         bot.register_next_step_handler(message, filter_selected)
 
 # Обработка выбора минимальной зарплаты
+
+
 def salary_from_selected(message):
     global selected_salary_from
     selected_salary_from = message.text
-    bot.send_message(message.chat.id, 'Введите максимальную желаемую зарплату:')
+    bot.send_message(
+        message.chat.id,
+        'Введите максимальную желаемую зарплату:')
     bot.register_next_step_handler(message, salary_to_selected)
 
 # Обработка выбора максимальной зарплаты
+
+
 def salary_to_selected(message):
     global selected_salary_to
     selected_salary_to = message.text
-    bot.send_message(message.chat.id, 'Хотите добавить еще один фильтр? (да/нет)')
+    bot.send_message(
+        message.chat.id,
+        'Хотите добавить еще один фильтр? (да/нет)')
     bot.register_next_step_handler(message, add_filter)
 
 # Обработка выбора типа занятости
+
+
 def employment_selected(message):
     global selected_employment
     if message.text == '/fulltime':
@@ -154,12 +192,18 @@ def employment_selected(message):
     elif message.text == '/remote':
         selected_employment = 'Удаленная работа'
     else:
-        bot.send_message(message.chat.id, 'Некорректный выбор. Попробуйте снова.')
+        bot.send_message(
+            message.chat.id,
+            'Некорректный выбор. Попробуйте снова.')
         bot.register_next_step_handler(message, employment_selected)
-    bot.send_message(message.chat.id, 'Хотите добавить еще один фильтр? (да/нет)')
+    bot.send_message(
+        message.chat.id,
+        'Хотите добавить еще один фильтр? (да/нет)')
     bot.register_next_step_handler(message, add_filter)
 
 # Обработка выбора графика работы
+
+
 def schedule_selected(message):
     global selected_schedule
     if message.text == '/fullday':
@@ -171,18 +215,24 @@ def schedule_selected(message):
     elif message.text == '/remote':
         selected_schedule = 'Удаленная работа'
     else:
-        bot.send_message(message.chat.id, 'Некорректный выбор. Попробуйте снова.')
+        bot.send_message(
+            message.chat.id,
+            'Некорректный выбор. Попробуйте снова.')
         bot.register_next_step_handler(message, schedule_selected)
-    bot.send_message(message.chat.id, 'Хотите добавить еще один фильтр? (да/нет)')
+    bot.send_message(
+        message.chat.id,
+        'Хотите добавить еще один фильтр? (да/нет)')
     bot.register_next_step_handler(message, add_filter)
 
 # Обработка добавления дополнительных фильтров
+
+
 def add_filter(message):
     if message.text.lower() == 'да':
         bot.send_message(message.chat.id, 'Выбери дополнительный фильтр:\n'
-                                         '1. Зарплата\n'
-                                         '2. Тип занятости\n'
-                                         '3. График работы')
+                         '1. Зарплата\n'
+                         '2. Тип занятости\n'
+                         '3. График работы')
         bot.register_next_step_handler(message, filter_selected)
     else:
         show_vacancies(message)
@@ -206,24 +256,30 @@ def save_vacancy_to_db(vacancy):
     experience_name = experience['name']
     schedule = vacancy['schedule']
     schedule_name = schedule['name']
-    #description = vacancy['snippet']
-    #requirement = description['requirement'] if description else None
-    #responsibility = description['responsibility'] if description else None
+    # description = vacancy['snippet']
+    # requirement = description['requirement'] if description else None
+    # responsibility = description['responsibility'] if description else None
 
     # Сохранение данных в базу
     cur.execute("""
-                INSERT INTO Vacancies (name, area_name, salary_from, salary_to, currency, street_name, employer, employment,
-                 experience, schedule)
+                INSERT INTO Vacancies (name, area_name, salary_from, salary_to, currency, street_name, employer, 
+                employment, experience, schedule)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (name, area_name, salary_from, salary_to, currency, street_name, employer_name, employment_name,
                   experience_name, schedule_name))
 
     conn.commit()
 
-@bot.message_handler(func=lambda message: message.text in ["Веб-дизайнер", "Разработчик Python", "СЕО-аналитик",
-                                                           "Грузчик", "Кассир"])
 
+@bot.message_handler(
+    func=lambda message: message.text in [
+        "Веб-дизайнер",
+        "Разработчик Python",
+        "СЕО-аналитик",
+        "Грузчик",
+        "Кассир"])
 def show_vacancies(message):
+    get_vacancies_from_hh(city_selected, selected_vacancy)
     sql_query = f"SELECT * FROM Vacancies WHERE name = '{selected_vacancy}' AND area_name = '{selected_city}'"
 
     # Добавьте условия для фильтрации по зарплате, занятости и графику,
@@ -261,17 +317,26 @@ def show_vacancies(message):
             experience = experience if experience else "не указано"
             schedule = schedule if schedule else "не указано"
 
-            bot.send_message(message.chat.id, f"{name}\nЗарплата: {salary_from} - {salary_to} {currency}\n"
-                                              f"Адрес: {address}\nГород: {area}\nЗанятость: {employment}\nОпыт: {experience}\n"
-                                              f"График: {schedule}")
+            bot.send_message(
+                message.chat.id,
+                f"{name}\nЗарплата: {salary_from} - {salary_to} {currency}\n"
+                f"Адрес: {address}\nГород: {area}\nЗанятость: {employment}\nОпыт: {experience}\n"
+                f"График: {schedule}\nРаботодатель: {employer}")
 
         # Предложить пользователю вернуться в главное меню
-        bot.send_message(message.chat.id, "Хотите начать новый поиск? (да/нет)")
+        bot.send_message(
+            message.chat.id,
+            "Хотите начать новый поиск? (да/нет)")
         bot.register_next_step_handler(message, start_over)
     else:
-        bot.send_message(message.chat.id, "К сожалению, вакансий по данному запросу не найдено.")
-        bot.send_message(message.chat.id, "Хотите начать новый поиск? (да/нет)")
+        bot.send_message(
+            message.chat.id,
+            "К сожалению, вакансий по данному запросу не найдено.")
+        bot.send_message(
+            message.chat.id,
+            "Хотите начать новый поиск? (да/нет)")
         bot.register_next_step_handler(message, start_over)
+
 
 def start_over(message):
     if message.text.lower() == 'да':
