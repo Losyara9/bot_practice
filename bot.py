@@ -27,7 +27,7 @@ def get_vacancies_from_hh(city, vacancy):
     print(get_area_id(city))
     cur.execute("""
         CREATE TABLE IF NOT EXISTS vacancies (
-            id SERIAL PRIMARY KEY,
+            id INTEGER,
             name VARCHAR(255),
             employer VARCHAR(255),
             salary_from INTEGER,
@@ -244,6 +244,7 @@ def add_filter(message):
 
 def save_vacancy_to_db(vacancy):
     # Получение необходимых данных
+    idv = vacancy['id']
     name = vacancy['name']
     salary = vacancy['salary']
     salary_from = salary['from'] if salary else None
@@ -262,21 +263,42 @@ def save_vacancy_to_db(vacancy):
     schedule_name = schedule['name']
     link = vacancy['alternate_url']
 
-    # Сохранение данных в базу
+    # Проверка на дубликат
     cur.execute("""
-                INSERT INTO Vacancies (name, area_name, salary_from, salary_to, currency, street_name, employer,
-                employment, experience, schedule, link)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, (name, area_name, salary_from, salary_to, currency, street_name, employer_name, employment_name,
-                  experience_name, schedule_name, link))
+                    SELECT 1 FROM Vacancies
+                    WHERE id = %s
+                    LIMIT 1
+                """, (idv,))
 
-    conn.commit()
+    if cur.fetchone() is None:
+        # Если дубликата нет, сохраняем вакансию
+        cur.execute(
+            """
+                        INSERT INTO Vacancies (id, name, area_name, salary_from, salary_to, currency, street_name, 
+                        employer, employment, experience, schedule, link)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+            (idv,
+             name,
+             area_name,
+             salary_from,
+             salary_to,
+             currency,
+             street_name,
+             employer_name,
+             employment_name,
+             experience_name,
+             schedule_name,
+             link))
+        conn.commit()
 
 
 def show_vacancies(message, page=1):
     """Функция для показа вакансий с пагинацией."""
     global selected_city, selected_vacancy
-    get_vacancies_from_hh(selected_city, selected_vacancy)  # Получение данных с HH
+    get_vacancies_from_hh(
+        selected_city,
+        selected_vacancy)  # Получение данных с HH
 
     sql_query = f"SELECT * FROM Vacancies WHERE name = '{selected_vacancy}' AND area_name = '{selected_city}'"
 
@@ -328,7 +350,9 @@ def show_vacancies(message, page=1):
         bot.send_message(
             message.chat.id,
             "Хотите посмотреть следующую вакансию? (да/нет)")
-        bot.register_next_step_handler(message, lambda m: handle_next_vacancy(m, page + 1))
+        bot.register_next_step_handler(
+            message, lambda m: handle_next_vacancy(
+                m, page + 1))
     else:
         bot.send_message(
             message.chat.id,
@@ -355,7 +379,9 @@ def start_over(message):
     if message.text.lower() == 'да':
         start_message(message)
     else:
-        bot.send_message(message.chat.id, "До свидания!\nЕсли захотите продолжить просмотр введите /start")
+        bot.send_message(
+            message.chat.id,
+            "До свидания!\nЕсли захотите продолжить просмотр введите /start")
 
 
 bot.infinity_polling()
