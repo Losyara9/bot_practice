@@ -26,7 +26,7 @@ def get_vacancies_from_hh(city, vacancy):
     params = {'text': vacancy, 'area': get_area_id(city), 'per_page': '100'}
     print(get_area_id(city))
     cur.execute("""
-        CREATE TABLE IF NOT EXISTS Vacancies (
+        CREATE TABLE IF NOT EXISTS vacancies (
             id SERIAL PRIMARY KEY,
             name VARCHAR(255),
             employer VARCHAR(255),
@@ -77,7 +77,8 @@ def get_area_id(city):
 def start_message(message):
     bot.send_message(
         message.chat.id,
-        'Привет! Я помогу найти тебе различные вакансии в нескольких городах:')
+        'Привет! Я помогу найти тебе различные вакансии в нескольких городах:\nЕсли хочешь начать заново'
+        ' введи /start')
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     item1 = types.KeyboardButton("Москва")
     item2 = types.KeyboardButton("Санкт-Петербург")
@@ -96,6 +97,8 @@ selected_salary_from = None
 selected_salary_to = None
 selected_employment = None
 selected_schedule = None
+
+global selected_city
 
 
 @bot.message_handler(
@@ -270,10 +273,12 @@ def save_vacancy_to_db(vacancy):
     conn.commit()
 
 
-def show_vacancies(message):
-    get_vacancies_from_hh(selected_city, selected_vacancy)
+def show_vacancies(message, page=1):
+    """Функция для показа вакансий с пагинацией."""
+    global selected_city, selected_vacancy
+    get_vacancies_from_hh(selected_city, selected_vacancy)  # Получение данных с HH
+
     sql_query = f"SELECT * FROM Vacancies WHERE name = '{selected_vacancy}' AND area_name = '{selected_city}'"
-    print(sql_query)
 
     # Добавление доп. фильтров которые были указаны пользователем
     if selected_salary_from is not None:
@@ -287,39 +292,43 @@ def show_vacancies(message):
 
     cur.execute(sql_query)
     vacancies = cur.fetchall()
-    print(vacancies)
+
     if vacancies:
-        for vacancy in vacancies:
-            name = vacancy[1]
-            employer = vacancy[2]
-            salary_from = vacancy[3]
-            salary_to = vacancy[4]
-            currency = vacancy[5]
-            area = vacancy[6]
-            address = vacancy[7]
-            employment = vacancy[8]
-            experience = vacancy[9]
-            schedule = vacancy[10]
-            link = vacancy[11]
+        # Определение индекса текущей вакансии
+        vacancy_index = (page - 1) % len(vacancies)
+        vacancy = vacancies[vacancy_index]
 
-            salary_from = salary_from if salary_from else "не указано"
-            salary_to = salary_to if salary_to else "не указано"
-            currency = currency if currency else "не указано"
-            address = address if address else "не указано"
-            employment = employment if employment else "не указано"
-            experience = experience if experience else "не указано"
-            schedule = schedule if schedule else "не указано"
+        # Вывод информации о текущей вакансии
+        name = vacancy[1]
+        employer = vacancy[2]
+        salary_from = vacancy[3]
+        salary_to = vacancy[4]
+        currency = vacancy[5]
+        area = vacancy[6]
+        address = vacancy[7]
+        employment = vacancy[8]
+        experience = vacancy[9]
+        schedule = vacancy[10]
+        link = vacancy[11]
 
-            bot.send_message(
-                message.chat.id, f"{name}\nЗарплата: {salary_from} - {salary_to} {currency}\n"
-                f"Адрес: {address}\nГород: {area}\nЗанятость: {employment}\nОпыт: {experience}\n"
-                f"График: {schedule}\nРаботодатель: {employer}\nСсылка на вакансию: {link}")
+        salary_from = salary_from if salary_from else "не указано"
+        salary_to = salary_to if salary_to else "не указано"
+        currency = currency if currency else "не указано"
+        address = address if address else "не указано"
+        employment = employment if employment else "не указано"
+        experience = experience if experience else "не указано"
+        schedule = schedule if schedule else "не указано"
 
-        # Предложить пользователю вернуться в главное меню
+        bot.send_message(
+            message.chat.id, f"{name}\nЗарплата: {salary_from} - {salary_to} {currency}\n"
+            f"Адрес: {address}\nГород: {area}\nЗанятость: {employment}\nОпыт: {experience}\n"
+            f"График: {schedule}\nРаботодатель: {employer}\nСсылка на вакансию: {link}")
+
+        # Предложить пользователю продолжить просмотр
         bot.send_message(
             message.chat.id,
-            "Хотите начать новый поиск? (да/нет)")
-        bot.register_next_step_handler(message, start_over)
+            "Хотите посмотреть следующую вакансию? (да/нет)")
+        bot.register_next_step_handler(message, lambda m: handle_next_vacancy(m, page + 1))
     else:
         bot.send_message(
             message.chat.id,
@@ -330,11 +339,23 @@ def show_vacancies(message):
         bot.register_next_step_handler(message, start_over)
 
 
+def handle_next_vacancy(message, page):
+    # Обработчик ответа пользователя о продолжении просмотра
+
+    if message.text.lower() == 'да':
+        show_vacancies(message, page)  # Вывод следующей вакансии
+    else:
+        bot.send_message(
+            message.chat.id,
+            "Хорошо. Завершаем просмотр.")
+        start_over(message)  # Возврат в главное меню
+
+
 def start_over(message):
     if message.text.lower() == 'да':
         start_message(message)
     else:
-        bot.send_message(message.chat.id, "Хорошо! До свидания!")
+        bot.send_message(message.chat.id, "До свидания!\nЕсли захотите продолжить просмотр введите /start")
 
 
 bot.infinity_polling()
