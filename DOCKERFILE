@@ -1,0 +1,17 @@
+FROM python:3.9-slim
+
+# Установка зависимостей
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Копирование кода приложения
+COPY bot.py ./
+
+# Установка окружения
+ENV DB_HOST=localhost
+ENV DB_NAME=postgres
+ENV DB_USER=postgres
+ENV DB_PASSWORD=los
+
+# Запуск приложения
+CMD ["sh", "-c", "sleep 10 && python app.py"]
