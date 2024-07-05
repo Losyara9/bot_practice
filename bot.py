@@ -9,12 +9,13 @@ bot = telebot.TeleBot(token)
 
 # Подключение к базе данных
 conn = psycopg2.connect(
-    dbname="vacancies",
-    user="postgres",
-    password="los",
-    host="localhost",
-    port="5432"
+       dbname="postgres",
+       user="postgres",
+       password="los",
+       host="postgres",
+       port="5432"
 )
+
 cur = conn.cursor()
 
 # Создание таблицы в бд и парсинг вакансий
@@ -77,8 +78,8 @@ def get_area_id(city):
 def start_message(message):
     bot.send_message(
         message.chat.id,
-        'Привет! Я помогу найти тебе различные вакансии в нескольких городах:\nЕсли захотите начать заново'
-        ' введи /start')
+        'Привет! Я помогу найти вам различные вакансии в нескольких городах:\nЕсли захотите начать заново,'
+        ' введите /start')
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     item1 = types.KeyboardButton("Москва")
     item2 = types.KeyboardButton("Санкт-Петербург")
@@ -112,13 +113,28 @@ global selected_city
         "Люберцы"])
 def city_selected(message):
     global selected_city
-    selected_city = message.text  # Запомни выбранный город
+    selected_city = message.text
     markup = types.ReplyKeyboardRemove()
     bot.send_message(
         message.chat.id,
         'Отлично! Введите название вакансии:',
         reply_markup=markup)
     bot.register_next_step_handler(message, vacancy_selected)
+
+
+@bot.message_handler(func=lambda message: message.text not in [
+    "Москва",
+    "Санкт-Петербург",
+    "Мытищи",
+    "Химки",
+    "Долгопрудный",
+    "Реутов",
+    "Люберцы"])
+def invalid_city(message):
+    bot.send_message(
+        message.chat.id,
+        'Неверный город! Пожалуйста, выберите один из предложенных городов.')
+    start_message(message)  # Вызов start_message для повторного выбора
 
 # Обработка выбора вакансии
 
@@ -145,7 +161,7 @@ def filter_selected(message):
     if message.text == 'Зарплата':
         bot.send_message(
             message.chat.id,
-            'Введите минимальную желаемую зарплату:')
+            'Введите минимальную желаемую зарплату\n Вводите слитно только цифры, без валюты. Например: 30000')
         bot.register_next_step_handler(message, salary_from_selected)
     elif message.text == 'Тип занятости':
         # Кнопки для выбора типа занятости
@@ -186,15 +202,25 @@ def filter_selected(message):
 
 def salary_from_selected(message):
     global selected_salary_from
-    selected_salary_from = message.text
-    keyboard = types.ReplyKeyboardMarkup(
-        resize_keyboard=True, one_time_keyboard=True)
-    keyboard.add(types.KeyboardButton("✔ Да"), types.KeyboardButton("❌ Нет"))
-    bot.send_message(
-        message.chat.id,
-        'Хотите добавить еще один фильтр?',
-        reply_markup=keyboard)
-    bot.register_next_step_handler(message, add_filter)
+    if message.text.isdigit():  # Проверяем, что введенное значение является числом
+        # Преобразуем введенное значение в целое число
+        selected_salary_from = int(message.text)
+        keyboard = types.ReplyKeyboardMarkup(
+            resize_keyboard=True, one_time_keyboard=True)
+        keyboard.add(
+            types.KeyboardButton("✔ Да"),
+            types.KeyboardButton("❌ Нет"))
+        keyboard.add(types.KeyboardButton("🔄 Сбросить"))
+        bot.send_message(
+            message.chat.id,
+            'Хотите добавить еще один фильтр?',
+            reply_markup=keyboard)
+        bot.register_next_step_handler(message, add_filter)
+    else:
+        bot.send_message(
+            message.chat.id,
+            'Пожалуйста, введите только цифры в качестве минимальной зарплаты. Например: 30000')
+        bot.register_next_step_handler(message, salary_from_selected)
 
 
 # Обработка выбора типа занятости
@@ -203,14 +229,27 @@ def salary_from_selected(message):
 def employment_selected(message):
     global selected_employment
     selected_employment = message.text
-    keyboard = types.ReplyKeyboardMarkup(
-        resize_keyboard=True, one_time_keyboard=True)
-    keyboard.add(types.KeyboardButton("✔ Да"), types.KeyboardButton("❌ Нет"))
-    bot.send_message(
-        message.chat.id,
-        'Хотите добавить еще один фильтр?',
-        reply_markup=keyboard)
-    bot.register_next_step_handler(message, add_filter)
+    if message.text in [
+        "Полная занятость",
+        "Частичная занятость",
+        "Проектная работа",
+            "Удаленная работа"]:
+        keyboard = types.ReplyKeyboardMarkup(
+            resize_keyboard=True, one_time_keyboard=True)
+        keyboard.add(
+            types.KeyboardButton("✔ Да"),
+            types.KeyboardButton("❌ Нет"))
+        keyboard.add(types.KeyboardButton("🔄 Сбросить"))
+        bot.send_message(
+            message.chat.id,
+            'Хотите добавить еще один фильтр?',
+            reply_markup=keyboard)
+        bot.register_next_step_handler(message, add_filter)
+    else:
+        bot.send_message(
+            message.chat.id,
+            'Пожалуйста, выберите тип занятости из предложенных вариантов.')
+        bot.register_next_step_handler(message, employment_selected)
 
 # Обработка выбора графика работы
 
@@ -218,21 +257,34 @@ def employment_selected(message):
 def schedule_selected(message):
     global selected_schedule
     selected_schedule = message.text
-    keyboard = types.ReplyKeyboardMarkup(
-        resize_keyboard=True, one_time_keyboard=True)
-    keyboard.add(types.KeyboardButton("✔ Да"), types.KeyboardButton("❌ Нет"))
-    bot.send_message(
-        message.chat.id,
-        'Хотите добавить еще один фильтр?',
-        reply_markup=keyboard)
-    bot.register_next_step_handler(message, add_filter)
+    if message.text in [
+        "Полный день",
+        "Сменный график",
+        "Гибкий график",
+            "Удаленная работа"]:
+        keyboard = types.ReplyKeyboardMarkup(
+            resize_keyboard=True, one_time_keyboard=True)
+        keyboard.add(
+            types.KeyboardButton("✔ Да"),
+            types.KeyboardButton("❌ Нет"))
+        keyboard.add(types.KeyboardButton("🔄 Сбросить"))
+        bot.send_message(
+            message.chat.id,
+            'Хотите добавить еще один фильтр?',
+            reply_markup=keyboard)
+        bot.register_next_step_handler(message, add_filter)
+    else:
+        bot.send_message(
+            message.chat.id,
+            'Пожалуйста, выберите тип занятости из предложенных вариантов.')
+        bot.register_next_step_handler(message, schedule_selected)
+
 
 # Обработка добавления дополнительных фильтров
 
 
 def add_filter(message):
     if message.text.lower() == '✔ да':
-        # Create the main filter selection keyboard again
         keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
         keyboard.add(types.KeyboardButton("Зарплата"),
                      types.KeyboardButton("Тип занятости"),
@@ -246,10 +298,13 @@ def add_filter(message):
         bot.register_next_step_handler(message, filter_selected)
     elif message.text.lower() == '❌ нет':
         show_vacancies(message)
+    elif message.text.lower() == '🔄 сбросить':
+        start_message(message)
     else:
+        print(message.text.lower())
         bot.send_message(
             message.chat.id,
-            "Пожалуйста, выберите 'Да' или 'Нет'.")
+            "Пожалуйста, выберите 'Да', 'Нет' или 'Сбросить'.")
         bot.register_next_step_handler(message, add_filter)
 
 
@@ -305,7 +360,7 @@ def save_vacancy_to_db(vacancy):
 
 
 def show_vacancies(message, page=1):
-    """Функция для показа вакансий с пагинацией."""
+    # Функция для показа вакансий
     global selected_city, selected_vacancy
     get_vacancies_from_hh(
         selected_city,
@@ -358,7 +413,9 @@ def show_vacancies(message, page=1):
         # Предложить пользователю продолжить просмотр
         keyboard = types.ReplyKeyboardMarkup(
             resize_keyboard=True, one_time_keyboard=True)
-        keyboard.add(types.KeyboardButton("➡️ Да"), types.KeyboardButton("❌ Нет"))
+        keyboard.add(
+            types.KeyboardButton("➡️ Да"),
+            types.KeyboardButton("❌ Нет"))
         bot.send_message(
             message.chat.id,
             "Хотите посмотреть следующую вакансию?",
@@ -372,7 +429,9 @@ def show_vacancies(message, page=1):
             "К сожалению, вакансий по данному запросу не найдено.")
         keyboard = types.ReplyKeyboardMarkup(
             resize_keyboard=True, one_time_keyboard=True)
-        keyboard.add(types.KeyboardButton("➡️ Да"), types.KeyboardButton("❌ Нет"))
+        keyboard.add(
+            types.KeyboardButton("➡️ Да"),
+            types.KeyboardButton("❌ Нет"))
         bot.send_message(
             message.chat.id,
             "Хотите начать новый поиск?",
@@ -388,7 +447,8 @@ def handle_next_vacancy(message, page):
     else:
         bot.send_message(
             message.chat.id,
-            "Хорошо. Завершаем просмотр.")
+            "Хорошо. Завершаем просмотр.",
+            reply_markup=types.ReplyKeyboardRemove())
         start_over(message)  # Возврат в главное меню
 
 
@@ -398,7 +458,7 @@ def start_over(message):
     else:
         bot.send_message(
             message.chat.id,
-            "До свидания!\nЕсли захотите продолжить просмотр введите /start")
+            "До свидания!\nЕсли захотите продолжить просмотр, введите /start")
 
 
 bot.infinity_polling()
